@@ -8,6 +8,7 @@ spring:
 
   logging:
     level:
+      logging.level.org.springframework.core.env=TRACE
       org.springframework.core.env: DEBUG
 
   jpa:
@@ -19,7 +20,7 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
   flyway:
-    enabled: true
+    enabled: false
     locations: classpath:db/migration
     validate-on-migrate: false
 
