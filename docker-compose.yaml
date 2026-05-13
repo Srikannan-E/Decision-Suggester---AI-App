@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  # PostgreSQL 16 with pgvector extension pre-installed
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: decision-copilot-db
+    environment:
+      POSTGRES_DB: decision_copilot
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis 7 for caching decision results
+  redis:
+    image: redis:7-alpine
+    container_name: decision-copilot-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# Named volumes persist data between container restarts
+volumes:
+  postgres_data:
+  redis_data:
