@@ -19,6 +19,10 @@ spring:
     locations: classpath:db/migration
     validate-on-migrate: false
 
+  sql:
+    init:
+      mode: never
+
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
