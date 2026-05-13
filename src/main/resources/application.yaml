@@ -2,12 +2,6 @@ spring:
   application:
     name: decision-copilot
 
-  datasource:
-    url: jdbc:postgresql://${PGHOST}:${PGPORT}/${PGDATABASE}
-    username: ${PGUSER}
-    password: ${PGPASSWORD}
-    driver-class-name: org.postgresql.Driver
-
   logging:
     level:
       logging.level.org.springframework.core.env=TRACE
