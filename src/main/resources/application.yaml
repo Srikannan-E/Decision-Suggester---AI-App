@@ -6,6 +6,10 @@ spring:
     url: ${DATABASE_URL}
     driver-class-name: org.postgresql.Driver
 
+  logging:
+    level:
+      org.springframework.core.env: DEBUG
+
   jpa:
     hibernate:
       ddl-auto: validate
