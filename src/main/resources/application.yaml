@@ -9,7 +9,6 @@ spring:
   logging:
     level:
       logging.level.org.springframework.core.env=TRACE
-      org.springframework.core.env: DEBUG
 
   jpa:
     hibernate:
