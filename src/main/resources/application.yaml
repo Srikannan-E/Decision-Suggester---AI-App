@@ -3,7 +3,8 @@ spring:
     name: decision-copilot
 
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/decision_copilot}
+    # On Railway, set SPRING_DATASOURCE_URL to your PostgreSQL JDBC URL.
+    url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: org.postgresql.Driver
