@@ -1,5 +1,6 @@
 -- Enable UUID generation
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 -- Use VARCHAR columns for decision status and verdict values so JPA enum/string persistence works cleanly
 
@@ -46,6 +47,7 @@ CREATE TABLE decision_results (
 );
 
 -- Indexes for fast lookups
+CREATE INDEX idx_query_trgm ON decision_queries USING gin (query gin_trgm_ops);
 CREATE INDEX idx_decision_queries_status ON decision_queries(status);
 CREATE INDEX idx_decision_queries_created_at ON decision_queries(created_at DESC);
 CREATE INDEX idx_decision_results_query_id ON decision_results(query_id);
