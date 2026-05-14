@@ -1,12 +1,14 @@
--- Enable UUID generation
+-- =========================
+-- EXTENSIONS (SAFE)
+-- =========================
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
--- Use VARCHAR columns for decision status and verdict values so JPA enum/string persistence works cleanly
-
--- Products table stores fetched product information
-CREATE TABLE products (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+-- =========================
+-- PRODUCTS TABLE
+-- =========================
+CREATE TABLE IF NOT EXISTS products (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(500) NOT NULL,
     url VARCHAR(2000),
     price DECIMAL(10, 2),
@@ -17,23 +19,40 @@ CREATE TABLE products (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Decision queries track each user request and its processing status
-CREATE TABLE decision_queries (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+-- =========================
+-- DECISION QUERIES TABLE
+-- =========================
+CREATE TABLE IF NOT EXISTS decision_queries (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     product_id UUID REFERENCES products(id),
     query TEXT,
     input_text VARCHAR(2000) NOT NULL,
-    category VARCHAR(200) NOT NULL,
+
+    -- SAFE COLUMN ADDITION STYLE
+    category VARCHAR(200),
     status VARCHAR(20) DEFAULT 'PENDING',
     error_message TEXT,
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Decision results hold the AI-generated verdict, pros, cons, and metadata
-CREATE TABLE decision_results (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-    query_id UUID REFERENCES decision_queries(id) UNIQUE,
+-- If table already existed earlier without column, ensure safety
+ALTER TABLE decision_queries
+ADD COLUMN IF NOT EXISTS category VARCHAR(200);
+
+ALTER TABLE decision_queries
+ADD COLUMN IF NOT EXISTS status VARCHAR(20);
+
+ALTER TABLE decision_queries
+ADD COLUMN IF NOT EXISTS error_message TEXT;
+
+-- =========================
+-- DECISION RESULTS TABLE
+-- =========================
+CREATE TABLE IF NOT EXISTS decision_results (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    query_id UUID UNIQUE REFERENCES decision_queries(id),
     product_id UUID REFERENCES products(id),
     verdict VARCHAR(20) NOT NULL,
     confidence_score DECIMAL(3, 2),
@@ -47,11 +66,27 @@ CREATE TABLE decision_results (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Indexes for fast lookups
-CREATE INDEX idx_query_trgm ON decision_queries USING gin (query gin_trgm_ops);
-CREATE INDEX idx_decision_queries_status ON decision_queries(status);
-CREATE INDEX idx_decision_queries_created_at ON decision_queries(created_at DESC);
-CREATE INDEX idx_decision_results_query_id ON decision_results(query_id);
-CREATE INDEX idx_decision_results_verdict ON decision_results(verdict);
-CREATE INDEX idx_products_name ON products(name);
-CREATE INDEX idx_products_name_trgm ON products USING gin(name gin_trgm_ops);
+-- =========================
+-- INDEXES (SAFE)
+-- =========================
+
+CREATE INDEX IF NOT EXISTS idx_query_trgm
+ON decision_queries USING gin (query gin_trgm_ops);
+
+CREATE INDEX IF NOT EXISTS idx_decision_queries_status
+ON decision_queries(status);
+
+CREATE INDEX IF NOT EXISTS idx_decision_queries_created_at
+ON decision_queries(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_decision_results_query_id
+ON decision_results(query_id);
+
+CREATE INDEX IF NOT EXISTS idx_decision_results_verdict
+ON decision_results(verdict);
+
+CREATE INDEX IF NOT EXISTS idx_products_name
+ON products(name);
+
+CREATE INDEX IF NOT EXISTS idx_products_name_trgm
+ON products USING gin (name gin_trgm_ops);
