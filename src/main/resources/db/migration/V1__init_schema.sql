@@ -21,6 +21,7 @@ CREATE TABLE products (
 CREATE TABLE decision_queries (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     product_id UUID REFERENCES products(id),
+    query TEXT,
     input_text VARCHAR(2000) NOT NULL,
     category VARCHAR(200) NOT NULL,
     status VARCHAR(20) DEFAULT 'PENDING',
