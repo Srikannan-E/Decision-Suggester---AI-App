@@ -17,5 +17,6 @@ public record DecisionResponse(
     String summary,
     String reasoning,
     Long processingTimeMs,
-    LocalDateTime createdAt
+    LocalDateTime createdAt,
+    String errorMessage
 ) {}

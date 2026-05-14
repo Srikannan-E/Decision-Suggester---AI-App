@@ -29,18 +29,24 @@ public class LlmDecisionService {
         log.info("Generating decision for product: {}", product.name());
 
         // Mock response for now
-        String response = """
-            {
-                "verdict": "BUY",
-                "confidenceScore": 0.85,
-                "pros": ["Good value", "High rating"],
-                "cons": ["Some reviews mention issues"],
-                "summary": "Overall a good purchase",
-                "reasoning": "Based on price and rating"
-            }
-            """;
+        StringBuilder ctx = new StringBuilder();
+        if (product.buyerBudget() != null) {
+            ctx.append(" Stated budget: ").append(product.buyerBudget()).append(".");
+        }
+        if (product.buyerQuestion() != null) {
+            ctx.append(" ").append(product.buyerQuestion());
+        }
+        String reasoning = "Based on simulated price $" + product.price() + ", rating " + product.rating()
+            + "/5, and " + product.reviewCount() + " reviews." + ctx;
 
-        return parseResponse(response);
+        return new LlmDecisionResult(
+            "BUY",
+            BigDecimal.valueOf(0.85),
+            new String[]{"Good value for the category", "Strong aggregate rating in simulated data"},
+            new String[]{"Simulated reviews may not reflect real listings", "Verify current street price before buying"},
+            "Overall the simulated signals look favorable; confirm fit for your budget and use case.",
+            reasoning
+        );
     }
 
     private String buildPrompt(ProductData product) {
@@ -51,6 +57,8 @@ public class LlmDecisionService {
             Price: $%s
             Rating: %s/5.0 (%d reviews)
             Category: %s
+            Buyer budget (if any): %s
+            Buyer question (if any): %s
             
             Respond in the following JSON format only, no markdown:
             {
@@ -66,7 +74,9 @@ public class LlmDecisionService {
                 product.price(),
                 product.rating(),
                 product.reviewCount(),
-                product.category()
+                product.category(),
+                product.buyerBudget() != null ? product.buyerBudget() : "not specified",
+                product.buyerQuestion() != null ? product.buyerQuestion() : "none"
             );
     }
 

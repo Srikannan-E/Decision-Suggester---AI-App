@@ -29,7 +29,7 @@ public class DecisionController {
     @PostMapping
     // @RateLimiter(name = "decisionApi")
     public ResponseEntity<Map<String, Object>> submitDecision(@Valid @RequestBody DecisionRequest request) {
-        UUID queryId = orchestrator.submitDecision(request.input(), request.category());
+        UUID queryId = orchestrator.submitDecision(request);
 
         return ResponseEntity
             .accepted()

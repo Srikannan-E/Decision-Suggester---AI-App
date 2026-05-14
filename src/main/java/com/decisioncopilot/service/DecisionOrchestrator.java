@@ -1,5 +1,6 @@
 package com.decisioncopilot.service;
 
+import com.decisioncopilot.dto.DecisionRequest;
 import com.decisioncopilot.dto.LlmDecisionResult;
 import com.decisioncopilot.dto.ProductData;
 import com.decisioncopilot.model.DecisionQuery;
@@ -50,29 +51,62 @@ public class DecisionOrchestrator {
 
         // Entry point: creates a PENDING query and kicks off background processing
     @Transactional
-    public UUID submitDecision(String input, String category) {
+    public UUID submitDecision(DecisionRequest request) {
+        String productName = request.input().trim();
+        String category = request.category().trim();
+        String storedInput = buildStoredInput(productName, category, request.budget(), request.userQuestion());
+
         DecisionQuery query = new DecisionQuery();
-        query.setInputText(input);
+        query.setInputText(storedInput);
         query.setCategory(category);
         query.setStatus(DecisionStatus.PENDING);
         query.setCreatedAt(LocalDateTime.now());
         query = queryRepository.save(query);
 
-        self.processDecisionAsync(query.getId(), input, category);
+        self.processDecisionAsync(query.getId(), productName, category, request.budget(), request.userQuestion());
 
         return query.getId();
     }
 
+    private static String buildStoredInput(String product, String category, String budget, String userQuestion) {
+        StringBuilder b = new StringBuilder();
+        b.append("Product: ").append(product).append("\nCategory: ").append(category);
+        if (budget != null && !budget.isBlank()) {
+            b.append("\nBudget: ").append(budget);
+        }
+        if (userQuestion != null && !userQuestion.isBlank()) {
+            b.append("\nQuestion: ").append(userQuestion);
+        }
+        return b.toString();
+    }
+
+    private static ProductData withBuyerContext(ProductData base, String budget, String userQuestion) {
+        String b = (budget == null || budget.isBlank()) ? null : budget;
+        String q = (userQuestion == null || userQuestion.isBlank()) ? null : userQuestion;
+        if (b == null && q == null) {
+            return base;
+        }
+        return new ProductData(base.name(), base.price(), base.rating(), base.reviewCount(), base.category(), b, q);
+    }
+
     // Runs on the llmTaskExecutor thread pool, not the request thread
     @Async("llmTaskExecutor")
-    public CompletableFuture<Void> processDecisionAsync(UUID queryId, String input, String category) {
+    public CompletableFuture<Void> processDecisionAsync(
+            UUID queryId,
+            String productName,
+            String category,
+            String budget,
+            String userQuestion) {
         long startTime = System.currentTimeMillis();
         log.info("Processing decision async for queryId: {}", queryId);
 
         try {
             self.updateStatus(queryId, DecisionStatus.PROCESSING);
 
-            ProductData productData = productDataService.fetchProductData(input, category);
+            ProductData productData = withBuyerContext(
+                productDataService.fetchProductData(productName, category),
+                budget,
+                userQuestion);
             Product product = saveProduct(productData);
 
             self.linkProductToQuery(queryId, product.getId());

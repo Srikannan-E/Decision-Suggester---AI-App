@@ -67,7 +67,8 @@ public class DecisionQueryService {
                 query.getStatus().name(),
                 null, null, null, null, null,
                 null, null, null, null, null,
-                query.getCreatedAt()
+                query.getCreatedAt(),
+                query.getErrorMessage()
             );
         }
 
@@ -84,7 +85,8 @@ public class DecisionQueryService {
             result.getSummary(),
             result.getReasoning(),
             result.getProcessingTimeMs(),
-            query.getCreatedAt()
+            query.getCreatedAt(),
+            null
         );
     }
 }

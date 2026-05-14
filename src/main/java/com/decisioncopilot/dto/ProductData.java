@@ -7,5 +7,11 @@ public record ProductData(
     BigDecimal price,
     BigDecimal rating,
     int reviewCount,
-    String category
-) {}
+    String category,
+    String buyerBudget,
+    String buyerQuestion
+) {
+    public ProductData(String name, BigDecimal price, BigDecimal rating, int reviewCount, String category) {
+        this(name, price, rating, reviewCount, category, null, null);
+    }
+}
