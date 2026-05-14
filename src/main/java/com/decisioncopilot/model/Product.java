@@ -20,6 +20,10 @@ public class Product {
     private BigDecimal price;
     private BigDecimal rating;
     private Integer reviewCount;
+    @Column(columnDefinition = "text[]")
+    private String[] featureHighlights;
+    @Column(length = 4000)
+    private String specSummary;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -45,6 +49,10 @@ public class Product {
     public void setRating(BigDecimal rating) { this.rating = rating; }
     public Integer getReviewCount() { return reviewCount; }
     public void setReviewCount(Integer reviewCount) { this.reviewCount = reviewCount; }
+    public String[] getFeatureHighlights() { return featureHighlights; }
+    public void setFeatureHighlights(String[] featureHighlights) { this.featureHighlights = featureHighlights; }
+    public String getSpecSummary() { return specSummary; }
+    public void setSpecSummary(String specSummary) { this.specSummary = specSummary; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

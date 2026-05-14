@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Decision Copilot</title>
+  <title>Decision Suggester</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -131,7 +131,7 @@
     .chat-scroll {
       flex: 1;
       overflow-y: auto;
-      padding: 24px 20px 100px;
+      padding: 24px 20px 32px;
       scroll-behavior: smooth;
     }
 
@@ -171,60 +171,125 @@
     .composer-wrap {
       position: sticky;
       bottom: 0;
-      padding: 12px 16px 20px;
-      background: linear-gradient(to top, var(--bg) 60%, transparent);
+      flex-shrink: 0;
+      padding: 4px 10px 10px;
+      background: linear-gradient(to top, rgba(7, 11, 20, 0.92) 40%, transparent);
     }
     .composer {
-      max-width: 720px;
+      max-width: 920px;
       margin: 0 auto;
-      border-radius: 18px;
+      border-radius: 12px;
       border: 1px solid var(--border);
-      background: rgba(13, 19, 32, 0.95);
-      backdrop-filter: blur(16px);
-      padding: 14px 16px;
-      box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.35);
+      background: rgba(13, 19, 32, 0.88);
+      backdrop-filter: blur(12px);
+      padding: 7px 9px 8px;
+      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.22);
     }
-    .composer-grid {
-      display: grid;
-      gap: 10px;
-      grid-template-columns: 1fr 1fr;
-    }
-    @media (max-width: 600px) { .composer-grid { grid-template-columns: 1fr; } }
 
-    label.c-label {
-      display: block;
-      font-size: 0.72rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-      margin-bottom: 6px;
-      font-weight: 600;
+    .composer-top {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 124px minmax(96px, 118px) auto;
+      gap: 6px 8px;
+      align-items: end;
     }
-    .input, .select, .textarea {
+    @media (max-width: 680px) {
+      .composer-top {
+        grid-template-columns: 1fr 1fr;
+      }
+      .field-product { grid-column: 1 / -1; }
+      .field-cat { grid-column: 1; }
+      .field-budget { grid-column: 2; }
+      .field-action {
+        grid-column: 1 / -1;
+        flex-direction: row;
+        justify-content: flex-end;
+        align-items: end;
+        gap: 8px;
+      }
+      .field-action .c-label-phantom { display: none; }
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .field-question {
+      margin-top: 6px;
+      padding-top: 6px;
+      border-top: 1px solid rgba(148, 163, 184, 0.1);
+    }
+
+    .c-label {
+      display: block;
+      font-size: 0.62rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--muted);
+      margin: 0;
+      font-weight: 600;
+      line-height: 1.2;
+    }
+    .c-label-phantom {
+      visibility: hidden;
+      white-space: nowrap;
+    }
+
+    .input-compact, .select-compact, .textarea-compact {
       width: 100%;
       border: 1px solid var(--border);
-      background: rgba(7, 11, 20, 0.6);
+      background: rgba(7, 11, 20, 0.55);
       color: var(--text);
-      border-radius: 12px;
-      padding: 10px 12px;
-      font-size: 0.95rem;
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 0.8125rem;
       font-family: inherit;
+      line-height: 1.35;
     }
-    .textarea { min-height: 72px; resize: vertical; }
-    .input:focus, .select:focus, .textarea:focus {
+    .textarea-compact {
+      min-height: 38px;
+      max-height: 120px;
+      resize: vertical;
+      display: block;
+    }
+    .input-compact:focus, .select-compact:focus, .textarea-compact:focus {
       outline: none;
       border-color: rgba(56, 189, 248, 0.45);
-      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.12);
+      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.1);
     }
 
-    .composer-actions {
-      display: flex;
-      gap: 10px;
-      margin-top: 12px;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: flex-end;
+    .btn-inline {
+      padding: 7px 12px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      border-radius: 8px;
+      white-space: nowrap;
     }
+
+    .composer-busy-hint {
+      margin: 6px 0 0;
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-align: right;
+    }
+
+    .feature-block {
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(7, 11, 20, 0.45);
+    }
+    .feature-block h4 {
+      margin: 0 0 8px;
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .feature-block ul { margin: 0; padding-left: 18px; color: #cbd5e1; font-size: 0.88rem; line-height: 1.5; }
+    .feature-block .spec-text { font-size: 0.88rem; line-height: 1.6; color: #cbd5e1; margin: 0; }
 
     /* Spinner */
     @keyframes spin { to { transform: rotate(360deg); } }
@@ -408,8 +473,21 @@
 
     function parseBudgetNumber(budgetStr) {
       if (!budgetStr || !budgetStr.trim()) return null;
-      const n = parseFloat(budgetStr.replace(/[^0-9.]/g, ""));
+      const digits = budgetStr.replace(/[^0-9.]/g, "").replace(/^\.+|\.+$/g, "");
+      if (!digits) return null;
+      const n = parseFloat(digits);
       return Number.isFinite(n) ? n : null;
+    }
+
+    const inrFormatter = new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    });
+
+    function formatInr(amount) {
+      if (amount == null || !Number.isFinite(Number(amount))) return "—";
+      return inrFormatter.format(Math.round(Number(amount)));
     }
 
     function budgetClass(price, budgetNum) {
@@ -442,9 +520,9 @@
               <div className="val" style={{ fontSize: "0.85rem", wordBreak: "break-word" }}>{data.productName || "—"}</div>
             </div>
             <div className="stat">
-              <label>Simulated price</label>
+              <label>Indicative price (INR)</label>
               <div className={"val " + budgetClass(price, budgetNum)}>
-                {price != null ? "$" + price.toFixed(2) : "—"}
+                {price != null ? formatInr(price) : "—"}
               </div>
             </div>
             <div className="stat">
@@ -456,6 +534,20 @@
               <div className="val">{budgetStr?.trim() ? budgetStr : "—"}</div>
             </div>
           </div>
+
+          {data.specSummary && (
+            <div className="feature-block">
+              <h4>Model notes</h4>
+              <p className="spec-text">{data.specSummary}</p>
+            </div>
+          )}
+
+          {data.featureHighlights?.length > 0 && (
+            <div className="feature-block">
+              <h4>Typical features &amp; details</h4>
+              <ul>{data.featureHighlights.map((f, i) => <li key={i}>{f}</li>)}</ul>
+            </div>
+          )}
 
           {data.summary && (
             <div className="summary-box">{data.summary}</div>
@@ -713,8 +805,8 @@
           <div className="main">
             <header className="header">
               <div>
-                <h1>Decision Copilot</h1>
-                <p>Ask for a buy / skip take on a product, your budget, and review-style signals.</p>
+                <h1>Decision-Suggester</h1>
+                <p>Ask for a buy / skip take on a product, your budget in INR, and review-style signals (indicative India pricing in the simulator).</p>
               </div>
               <div className="header-actions">
                 <button type="button" className="btn btn-ghost" onClick={newChat}>New chat</button>
@@ -736,7 +828,7 @@
                 <div key={m.id} className={"msg " + (m.role === "user" ? "msg-user" : "")}>
                   <div className="msg-avatar">{m.role === "user" ? "You" : "AI"}</div>
                   <div className="msg-body">
-                    <div className="msg-meta">{m.role === "user" ? "Your request" : "Copilot"}</div>
+                    <div className="msg-meta">{m.role === "user" ? "Your request" : "Suggestions"}</div>
                     {m.role === "user" && (
                       <div style={{ whiteSpace: "pre-wrap", fontSize: "0.95rem", lineHeight: 1.55 }}>{m.content}</div>
                     )}
@@ -767,20 +859,22 @@
 
             <div className="composer-wrap">
               <div className="composer">
-                <div className="composer-grid">
-                  <div style={{ gridColumn: "1 / -1" }}>
-                    <label className="c-label">Product name or search</label>
+                <div className="composer-top">
+                  <div className="field field-product">
+                    <label className="c-label" htmlFor="inp-product">Product</label>
                     <input
-                      className="input"
+                      id="inp-product"
+                      className="input-compact"
                       value={product}
                       onChange={(e) => setProduct(e.target.value)}
-                      placeholder="e.g. Sony WH-1000XM5, standing desk 60 inch"
+                      placeholder="Model name, e.g. POCO M4 5G"
                       disabled={busy}
+                      autoComplete="off"
                     />
                   </div>
-                  <div>
-                    <label className="c-label">Category</label>
-                    <select className="select" value={category} onChange={(e) => setCategory(e.target.value)} disabled={busy}>
+                  <div className="field field-cat">
+                    <label className="c-label" htmlFor="inp-category">Category</label>
+                    <select id="inp-category" className="select-compact" value={category} onChange={(e) => setCategory(e.target.value)} disabled={busy}>
                       <option value="electronics">Electronics</option>
                       <option value="home">Home &amp; kitchen</option>
                       <option value="fitness">Fitness</option>
@@ -789,33 +883,40 @@
                       <option value="general">General</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="c-label">Budget (optional)</label>
+                  <div className="field field-budget">
+                    <label className="c-label" htmlFor="inp-budget">Budget (₹)</label>
                     <input
-                      className="input"
+                      id="inp-budget"
+                      className="input-compact"
                       value={budget}
                       onChange={(e) => setBudget(e.target.value)}
-                      placeholder="e.g. 350 or $350"
+                      placeholder="20000"
                       disabled={busy}
+                      inputMode="decimal"
                     />
                   </div>
-                  <div style={{ gridColumn: "1 / -1" }}>
-                    <label className="c-label">What do you want to know? (optional)</label>
-                    <textarea
-                      className="textarea"
-                      value={userQuestion}
-                      onChange={(e) => setUserQuestion(e.target.value)}
-                      placeholder="e.g. Is it worth it for a noisy commute? Any red flags in reviews?"
-                      disabled={busy}
-                    />
+                  <div className="field field-action">
+                    <span className="c-label c-label-phantom" aria-hidden="true">Go</span>
+                    <button type="button" className="btn btn-primary btn-inline" onClick={runDecision} disabled={busy}>
+                      {busy ? <><Spinner /> Run…</> : "Recommend"}
+                    </button>
                   </div>
                 </div>
-                <div className="composer-actions">
-                  {busy && <span style={{ color: "var(--muted)", fontSize: "0.88rem", marginRight: "auto" }}>Working…</span>}
-                  <button type="button" className="btn btn-primary" onClick={runDecision} disabled={busy}>
-                    {busy ? <><Spinner /> &nbsp; Running…</> : "Get recommendation"}
-                  </button>
+                <div className="field field-question">
+                  <label className="c-label" htmlFor="inp-question">Question (optional)</label>
+                  <textarea
+                    id="inp-question"
+                    className="textarea-compact"
+                    rows={2}
+                    value={userQuestion}
+                    onChange={(e) => setUserQuestion(e.target.value)}
+                    placeholder="Camera quality, battery, reviews…"
+                    disabled={busy}
+                  />
                 </div>
+                {busy && (
+                  <p className="composer-busy-hint" aria-live="polite">Working on your request…</p>
+                )}
               </div>
             </div>
           </div>

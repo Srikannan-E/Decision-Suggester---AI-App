@@ -65,8 +65,7 @@ public class DecisionQueryService {
             return new DecisionResponse(
                 query.getId(),
                 query.getStatus().name(),
-                null, null, null, null, null,
-                null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
                 query.getCreatedAt(),
                 query.getErrorMessage()
             );
@@ -82,6 +81,8 @@ public class DecisionQueryService {
             result.getConfidenceScore(),
             result.getPros(),
             result.getCons(),
+            product.getFeatureHighlights(),
+            product.getSpecSummary(),
             result.getSummary(),
             result.getReasoning(),
             result.getProcessingTimeMs(),

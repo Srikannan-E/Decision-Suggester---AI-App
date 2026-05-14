@@ -86,7 +86,16 @@ public class DecisionOrchestrator {
         if (b == null && q == null) {
             return base;
         }
-        return new ProductData(base.name(), base.price(), base.rating(), base.reviewCount(), base.category(), b, q);
+        return new ProductData(
+            base.name(),
+            base.price(),
+            base.rating(),
+            base.reviewCount(),
+            base.category(),
+            b,
+            q,
+            base.featureHighlights(),
+            base.specSummary());
     }
 
     // Runs on the llmTaskExecutor thread pool, not the request thread
@@ -150,6 +159,8 @@ public class DecisionOrchestrator {
         product.setRating(data.rating());
         product.setReviewCount(data.reviewCount());
         product.setCategory(data.category());
+        product.setFeatureHighlights(data.featureHighlights());
+        product.setSpecSummary(data.specSummary());
         product.setCreatedAt(LocalDateTime.now());
         return productRepository.save(product);
     }

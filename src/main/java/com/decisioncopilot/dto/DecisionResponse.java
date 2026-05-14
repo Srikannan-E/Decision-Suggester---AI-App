@@ -14,6 +14,8 @@ public record DecisionResponse(
     BigDecimal confidenceScore,
     String[] pros,
     String[] cons,
+    String[] featureHighlights,
+    String specSummary,
     String summary,
     String reasoning,
     Long processingTimeMs,
