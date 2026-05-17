@@ -15,8 +15,29 @@ import java.util.Set;
 @Service
 public class ProductDataServiceImpl implements ProductDataService {
 
+    // FIXED: Add validation for actual product names
+    // Prevent processing of random questions like "what is name?"
+    private static final Set<String> VALID_KEYWORDS = Set.of(
+        "iphone", "galaxy", "pixel", "poco", "redmi", "xiaomi", "oneplus", "realme", "oppo", "vivo",
+        "nothing", "motorola", "macbook", "laptop", "thinkpad", "ideapad", "chromebook", "ultrabook",
+        "headphone", "earbuds", "airpods", "wh-1000", "speaker", "soundbar", "anc",
+        "desk", "chair", "mixer", "induction", "vacuum", "book", "kindle", "shirt", "pants",
+        "watch", "smartwatch", "band", "bracelet", "monitor", "keyboard", "mouse", "camera"
+    );
+
     @Override
     public ProductData fetchProductData(String input, String category) {
+        String trimmedInput = input.trim();
+        
+        // CRITICAL FIX: Validate that input contains actual product keywords
+        // Reject ambiguous queries like "what is name?", "tell me about", etc.
+        if (!isValidProductQuery(trimmedInput)) {
+            throw new IllegalArgumentException(
+                "Invalid product input: '" + trimmedInput + "'. Please provide an actual product name or model " +
+                "(e.g., 'iPhone 15', 'Samsung Galaxy S24', 'Sony WH-1000XM5')"
+            );
+        }
+
         int hash = Math.abs(input.hashCode());
         String cat = category != null ? category.trim() : "general";
         String lower = input.toLowerCase(Locale.ROOT);
@@ -40,6 +61,40 @@ public class ProductDataServiceImpl implements ProductDataService {
             features,
             specSummary
         );
+    }
+
+    /**
+     * FIXED: Validate if the input is actually a product name
+     * Not a generic question or unrelated text
+     */
+    private boolean isValidProductQuery(String input) {
+        if (input == null || input.isBlank() || input.length() < 3) {
+            return false;
+        }
+
+        String lower = input.toLowerCase(Locale.ROOT);
+        
+        // Reject common question patterns
+        if (lower.startsWith("what is") || lower.startsWith("who is") || 
+            lower.startsWith("how to") || lower.startsWith("tell me") ||
+            lower.startsWith("can you") || lower.startsWith("do you") ||
+            lower.startsWith("why") || lower.startsWith("when")) {
+            return false;
+        }
+
+        // Reject very generic single words
+        if (lower.equals("phone") || lower.equals("laptop") || lower.equals("product")) {
+            return false;
+        }
+
+        // Check if input contains at least one known product keyword
+        // OR has enough length and structure like a product name
+        boolean hasKeyword = VALID_KEYWORDS.stream()
+            .anyMatch(lower::contains);
+        
+        boolean looksLikeProductName = input.matches(".*[A-Z0-9].*") && input.length() > 3;
+
+        return hasKeyword || looksLikeProductName;
     }
 
     private enum Segment {
@@ -84,7 +139,6 @@ public class ProductDataServiceImpl implements ProductDataService {
     }
 
     private BigDecimal priceInr(String lower, String category, int hash, BigDecimal rating) {
-        // Known budget-phone bands (still deterministic via hash)
         if (lower.contains("poco m4")) {
             return BigDecimal.valueOf(10_499 + (hash % 2_800)).setScale(0, RoundingMode.HALF_UP);
         }

@@ -23,14 +23,17 @@ public class DecisionOrchestrator {
 
     private final DecisionQueryRepository queryRepository;
     private final DecisionProcessor decisionProcessor;
+    private final ProductDataServiceImpl productDataService;
     private final Executor llmTaskExecutor;
 
     public DecisionOrchestrator(
             DecisionQueryRepository queryRepository,
             DecisionProcessor decisionProcessor,
+            ProductDataServiceImpl productDataService,
             @Qualifier("llmTaskExecutor") Executor llmTaskExecutor) {
         this.queryRepository = queryRepository;
         this.decisionProcessor = decisionProcessor;
+        this.productDataService = productDataService;
         this.llmTaskExecutor = llmTaskExecutor;
     }
 
@@ -38,6 +41,16 @@ public class DecisionOrchestrator {
     public UUID submitDecision(DecisionRequest request) {
         String productName = request.input().trim();
         String category = request.category().trim();
+        
+        // FIXED: Validate product input EARLY before creating query
+        // This prevents invalid requests from clogging the processing queue
+        try {
+            productDataService.fetchProductData(productName, category);
+        } catch (IllegalArgumentException e) {
+            // Re-throw validation error so controller can return 400
+            throw e;
+        }
+        
         String storedInput = buildStoredInput(productName, category, request.budget(), request.userQuestion());
 
         DecisionQuery query = new DecisionQuery();
@@ -48,11 +61,14 @@ public class DecisionOrchestrator {
         query = queryRepository.saveAndFlush(query);
         UUID queryId = query.getId();
 
+        log.info("Decision query created with queryId={}, product={}", queryId, productName);
+
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
                 llmTaskExecutor.execute(() -> {
                     try {
+                        log.debug("Starting background processing for queryId={}", queryId);
                         decisionProcessor.process(
                             queryId, productName, category, request.budget(), request.userQuestion());
                     } catch (Exception e) {
