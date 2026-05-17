@@ -47,7 +47,11 @@ public class DecisionPersistenceService {
             budget,
             userQuestion);
 
+        // Save product and ensure it's flushed to the database
         Product product = saveProduct(productData);
+        
+        // Link product to query AFTER ensuring product is committed
+        // This prevents FK constraint violation in the separate REQUIRES_NEW transaction
         statusService.linkProduct(queryId, product.getId());
 
         LlmDecisionResult llmResult = llmDecisionService.generateDecision(productData);
@@ -83,7 +87,12 @@ public class DecisionPersistenceService {
         product.setFeatureHighlights(data.featureHighlights());
         product.setSpecSummary(data.specSummary());
         product.setCreatedAt(LocalDateTime.now());
-        return productRepository.save(product);
+        
+        // CRITICAL FIX: Use saveAndFlush() instead of save()
+        // This ensures the product is immediately persisted to the database
+        // before linkProduct() is called with REQUIRES_NEW propagation
+        // Otherwise, the FK reference to this product won't exist yet
+        return productRepository.saveAndFlush(product);
     }
 
     private void saveDecisionResult(UUID queryId, UUID productId, LlmDecisionResult llmResult, long processingTime) {

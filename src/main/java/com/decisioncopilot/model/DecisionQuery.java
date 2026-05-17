@@ -14,11 +14,13 @@ public class DecisionQuery {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
     private UUID productId;
+    @Column(length = 2000)
     private String inputText;
     private String category;
     @Enumerated(EnumType.STRING)
     @Column(columnDefinition = "VARCHAR(20)")
     private DecisionStatus status;
+    @Column(columnDefinition = "TEXT")
     private String errorMessage;
     private LocalDateTime createdAt;
 

@@ -35,7 +35,15 @@ public class DecisionQueryStatusService {
         queryRepository.saveAndFlush(query);
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    /**
+     * CRITICAL FIX: Changed propagation from REQUIRES_NEW to MANDATORY
+     * This ensures linkProduct() participates in the same transaction as saveProduct()
+     * allowing it to see the flushed product immediately, avoiding FK constraint violations.
+     * 
+     * REQUIRES_NEW was creating a separate transaction where the product insert
+     * wasn't yet visible, causing the FK constraint to fail.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
     public void linkProduct(UUID queryId, UUID productId) {
         DecisionQuery query = queryRepository.findById(queryId)
             .orElseThrow(() -> new IllegalStateException("Decision query not found: " + queryId));
