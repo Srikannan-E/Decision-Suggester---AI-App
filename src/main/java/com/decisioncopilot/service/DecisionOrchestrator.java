@@ -18,6 +18,8 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -62,10 +64,18 @@ public class DecisionOrchestrator {
         query.setStatus(DecisionStatus.PENDING);
         query.setCreatedAt(LocalDateTime.now());
         query = queryRepository.save(query);
+        UUID queryId = query.getId();
 
-        self.processDecisionAsync(query.getId(), productName, category, request.budget(), request.userQuestion());
+        // Start background work only after this transaction commits so the row is visible
+        // to the async thread and status updates are not blocked on the insert lock.
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                self.processDecisionAsync(queryId, productName, category, request.budget(), request.userQuestion());
+            }
+        });
 
-        return query.getId();
+        return queryId;
     }
 
     private static String buildStoredInput(String product, String category, String budget, String userQuestion) {
@@ -100,6 +110,7 @@ public class DecisionOrchestrator {
 
     // Runs on the llmTaskExecutor thread pool, not the request thread
     @Async("llmTaskExecutor")
+    @Transactional
     public CompletableFuture<Void> processDecisionAsync(
             UUID queryId,
             String productName,

@@ -10,15 +10,15 @@ import java.util.UUID;
 
 public interface DecisionQueryRepository extends JpaRepository<DecisionQuery, UUID> {
 
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("UPDATE DecisionQuery dq SET dq.status = :status WHERE dq.id = :id")
     void updateStatus(@Param("id") UUID id, @Param("status") DecisionStatus status);
 
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("UPDATE DecisionQuery dq SET dq.status = :status, dq.errorMessage = :errorMessage WHERE dq.id = :id")
     void updateStatusWithError(@Param("id") UUID id, @Param("status") DecisionStatus status, @Param("errorMessage") String errorMessage);
 
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("UPDATE DecisionQuery dq SET dq.productId = :productId WHERE dq.id = :queryId")
     void linkProduct(@Param("queryId") UUID queryId, @Param("productId") UUID productId);
 }

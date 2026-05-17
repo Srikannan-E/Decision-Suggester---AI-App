@@ -4,6 +4,7 @@ import com.decisioncopilot.dto.DecisionHistoryResponse;
 import com.decisioncopilot.dto.DecisionResponse;
 import com.decisioncopilot.model.DecisionQuery;
 import com.decisioncopilot.model.DecisionResult;
+import com.decisioncopilot.model.DecisionStatus;
 import com.decisioncopilot.model.Product;
 import com.decisioncopilot.repository.DecisionQueryRepository;
 import com.decisioncopilot.repository.DecisionResultRepository;
@@ -71,9 +72,13 @@ public class DecisionQueryService {
             );
         }
 
+        String status = query.getStatus() == DecisionStatus.COMPLETED || query.getStatus() == DecisionStatus.FAILED
+            ? query.getStatus().name()
+            : DecisionStatus.COMPLETED.name();
+
         return new DecisionResponse(
             query.getId(),
-            query.getStatus().name(),
+            status,
             product.getName(),
             product.getPrice(),
             product.getRating(),

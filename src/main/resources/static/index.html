@@ -689,6 +689,11 @@
             return r.json();
           };
 
+          const isReady = (data) =>
+            data.status === "COMPLETED" ||
+            data.status === "FAILED" ||
+            (data.verdict != null && data.verdict !== "");
+
           const finalize = (data) => {
             stopPolling();
             if (data.status === "FAILED") {
@@ -710,16 +715,30 @@
           };
 
           let data = await pollOnce();
-          if (data.status !== "PENDING" && data.status !== "PROCESSING") {
+          if (isReady(data)) {
             finalize(data);
             return;
           }
 
+          let pollAttempts = 0;
+          const maxPollAttempts = 45;
+
           pollRef.current = setInterval(async () => {
             try {
+              pollAttempts += 1;
               data = await pollOnce();
-              if (data.status !== "PENDING" && data.status !== "PROCESSING") {
+              if (isReady(data)) {
                 finalize(data);
+                return;
+              }
+              if (pollAttempts >= maxPollAttempts) {
+                stopPolling();
+                setBusy(false);
+                updateAssistantMessage(assistantId, {
+                  loading: false,
+                  content: "Decision is taking longer than expected. Check Recent decisions or try again.",
+                  failed: true,
+                });
               }
             } catch (e) {
               stopPolling();

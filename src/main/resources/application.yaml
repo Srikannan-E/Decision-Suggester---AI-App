@@ -2,9 +2,10 @@ spring:
   application:
     name: decision-copilot
 
-  logging:
-    level:
-      logging.level.org.springframework.core.env=TRACE
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/decision_copilot}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
 
   jpa:
     hibernate:
@@ -29,7 +30,7 @@ spring:
       port: ${SPRING_DATA_REDIS_PORT:6379}
 
   cache:
-    type: redis
+    type: ${SPRING_CACHE_TYPE:simple}
     redis:
       time-to-live: 30m
 
