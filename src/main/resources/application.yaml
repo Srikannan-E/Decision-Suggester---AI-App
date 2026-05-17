@@ -42,6 +42,14 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
 
+# FIXED: Add thread pool for background async processing
+# This prevents the "too much loading" issue where requests hang
+spring-thread-pool:
+  core-pool-size: 5
+  max-pool-size: 10
+  queue-capacity: 100
+  thread-name-prefix: llm-task-
+
 resilience4j:
   circuitbreaker:
     instances:

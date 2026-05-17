@@ -19,7 +19,8 @@ public class ProductDataServiceImpl implements ProductDataService {
     // Prevent processing of random questions like "what is name?"
     private static final Set<String> VALID_KEYWORDS = Set.of(
         "iphone", "galaxy", "pixel", "poco", "redmi", "xiaomi", "oneplus", "realme", "oppo", "vivo",
-        "nothing", "motorola", "macbook", "laptop", "thinkpad", "ideapad", "chromebook", "ultrabook",
+        "nothing", "motorola", "asus", "dell", "hp", "lenovo",
+        "macbook", "laptop", "thinkpad", "ideapad", "chromebook", "ultrabook", "vivobook",
         "headphone", "earbuds", "airpods", "wh-1000", "speaker", "soundbar", "anc",
         "desk", "chair", "mixer", "induction", "vacuum", "book", "kindle", "shirt", "pants",
         "watch", "smartwatch", "band", "bracelet", "monitor", "keyboard", "mouse", "camera"
@@ -34,7 +35,7 @@ public class ProductDataServiceImpl implements ProductDataService {
         if (!isValidProductQuery(trimmedInput)) {
             throw new IllegalArgumentException(
                 "Invalid product input: '" + trimmedInput + "'. Please provide an actual product name or model " +
-                "(e.g., 'iPhone 15', 'Samsung Galaxy S24', 'Sony WH-1000XM5')"
+                "(e.g., 'iPhone 15', 'Samsung Galaxy S24', 'Sony WH-1000XM5', 'AirPods Pro')"
             );
         }
 
@@ -83,7 +84,8 @@ public class ProductDataServiceImpl implements ProductDataService {
         }
 
         // Reject very generic single words
-        if (lower.equals("phone") || lower.equals("laptop") || lower.equals("product")) {
+        if (lower.equals("phone") || lower.equals("laptop") || lower.equals("product") || 
+            lower.equals("headphone") || lower.equals("speaker")) {
             return false;
         }
 
@@ -101,16 +103,36 @@ public class ProductDataServiceImpl implements ProductDataService {
         SMARTPHONE, LAPTOP, AUDIO, HOME, FITNESS, FASHION, BOOKS, GENERAL
     }
 
+    /**
+     * FIXED: CRITICAL ordering for segment inference
+     * Check SPECIFIC categories BEFORE generic patterns
+     * Order: AUDIO → LAPTOP → SMARTPHONE (then category-based)
+     * 
+     * This prevents:
+     * - "Asus Vivobook" being classified as SMARTPHONE (contains "book"/"phone")
+     * - "AirPods" being classified as SMARTPHONE (contains "pod")
+     * - "Sony Speaker" being classified as SMARTPHONE (contains "speaker")
+     */
     private Segment inferSegment(String lower, String category) {
-        if (matches(lower, "iphone", "galaxy", "pixel", "poco", "redmi", "xiaomi", "oneplus", "realme", "oppo", "vivo", "nothing", "motorola", "5g", "phone")) {
-            return Segment.SMARTPHONE;
-        }
-        if (matches(lower, "macbook", "laptop", "thinkpad", "ideapad", "chromebook", "ultrabook")) {
-            return Segment.LAPTOP;
-        }
-        if (matches(lower, "headphone", "earbuds", "airpods", "wh-1000", "speaker", "soundbar", "anc ")) {
+        // STEP 1: Check AUDIO keywords FIRST (highest specificity)
+        // "airpods", "headphone", "speaker" should never be SMARTPHONE
+        if (matchesAudio(lower)) {
             return Segment.AUDIO;
         }
+        
+        // STEP 2: Check LAPTOP keywords (before generic patterns)
+        // "Asus Vivobook", "Dell Inspiron", "HP Pavilion" should be LAPTOP, not SMARTPHONE
+        if (matchesLaptop(lower)) {
+            return Segment.LAPTOP;
+        }
+        
+        // STEP 3: Check SMARTPHONE keywords (most generic)
+        // Only after AUDIO and LAPTOP are ruled out
+        if (matchesSmartphone(lower)) {
+            return Segment.SMARTPHONE;
+        }
+        
+        // STEP 4: Check category-specific segments
         if ("fitness".equalsIgnoreCase(category)) {
             return Segment.FITNESS;
         }
@@ -126,7 +148,44 @@ public class ProductDataServiceImpl implements ProductDataService {
         if ("electronics".equalsIgnoreCase(category)) {
             return Segment.GENERAL;
         }
+        
         return Segment.GENERAL;
+    }
+
+    /**
+     * FIXED: Separate AUDIO matching logic
+     * High priority to prevent false classifications
+     */
+    private boolean matchesAudio(String lower) {
+        return matches(lower, 
+            "headphone", "earbuds", "airpods", "wh-1000", 
+            "speaker", "soundbar", "anc", "sony wh", "bose", "sennheiser",
+            "earphone", "audio", "listening", "music", "podcast"
+        );
+    }
+
+    /**
+     * FIXED: Separate LAPTOP matching logic
+     * Check brand + "laptop" patterns before generic keywords
+     */
+    private boolean matchesLaptop(String lower) {
+        return matches(lower,
+            "macbook", "thinkpad", "ideapad", "chromebook", "ultrabook", "vivobook",
+            "asus laptop", "dell laptop", "hp laptop", "lenovo laptop",
+            "laptop", "notebook"
+        );
+    }
+
+    /**
+     * FIXED: Separate SMARTPHONE matching logic
+     * Only after AUDIO and LAPTOP are ruled out
+     */
+    private boolean matchesSmartphone(String lower) {
+        return matches(lower,
+            "iphone", "galaxy", "pixel", "poco", "redmi", "xiaomi", 
+            "oneplus", "realme", "oppo", "vivo", "nothing", "motorola",
+            "5g", "smartphone", "android", "phone"
+        );
     }
 
     private static boolean matches(String lower, String... needles) {
@@ -139,6 +198,7 @@ public class ProductDataServiceImpl implements ProductDataService {
     }
 
     private BigDecimal priceInr(String lower, String category, int hash, BigDecimal rating) {
+        // SMARTPHONE specific pricing
         if (lower.contains("poco m4")) {
             return BigDecimal.valueOf(10_499 + (hash % 2_800)).setScale(0, RoundingMode.HALF_UP);
         }
@@ -147,6 +207,22 @@ public class ProductDataServiceImpl implements ProductDataService {
         }
         if (lower.contains("iphone")) {
             return BigDecimal.valueOf(52_999 + (hash % 85_000)).setScale(0, RoundingMode.HALF_UP);
+        }
+
+        // LAPTOP specific pricing
+        if (lower.contains("asus vivobook") || lower.contains("vivobook")) {
+            return BigDecimal.valueOf(55_000 + (hash % 65_000)).setScale(0, RoundingMode.HALF_UP);
+        }
+        if (lower.contains("macbook")) {
+            return BigDecimal.valueOf(89_999 + (hash % 120_000)).setScale(0, RoundingMode.HALF_UP);
+        }
+
+        // AUDIO specific pricing
+        if (lower.contains("airpods")) {
+            return BigDecimal.valueOf(19_999 + (hash % 30_000)).setScale(0, RoundingMode.HALF_UP);
+        }
+        if (lower.contains("wh-1000") || lower.contains("sony")) {
+            return BigDecimal.valueOf(24_999 + (hash % 45_000)).setScale(0, RoundingMode.HALF_UP);
         }
 
         int catHash = Math.abs(category.hashCode());
