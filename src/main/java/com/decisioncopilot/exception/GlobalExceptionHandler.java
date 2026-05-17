@@ -12,68 +12,95 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
-import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.stream.Collectors;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    // Handle Bean Validation failures (400 Bad Request)
+    /**
+     * FIXED: Updated to match new ErrorResponse signature (String code, String message, String hint)
+     * Handle Bean Validation failures (400 Bad Request)
+     */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationErrors(MethodArgumentNotValidException ex) {
-        List<String> details = ex.getBindingResult().getFieldErrors().stream()
+        String details = ex.getBindingResult().getFieldErrors().stream()
             .map(error -> error.getField() + ": " + error.getDefaultMessage())
-            .toList();
+            .collect(Collectors.joining("; "));
 
         ErrorResponse response = new ErrorResponse(
-            HttpStatus.BAD_REQUEST.value(),
+            "VALIDATION_ERROR",
             "Validation Failed",
-            "Request contains invalid fields",
-            details,
-            java.time.LocalDateTime.now()
+            details.isEmpty() ? "Request contains invalid fields" : details
         );
 
         return ResponseEntity.badRequest().body(response);
     }
 
-    // Handle not-found exceptions (404 Not Found)
+    /**
+     * FIXED: Updated to match new ErrorResponse signature
+     * Handle not-found exceptions (404 Not Found)
+     */
     @ExceptionHandler({EntityNotFoundException.class, NoSuchElementException.class})
     public ResponseEntity<ErrorResponse> handleNotFound(Exception ex) {
         ErrorResponse response = new ErrorResponse(
-            HttpStatus.NOT_FOUND.value(),
+            "NOT_FOUND",
             "Not Found",
-            ex.getMessage()
+            ex.getMessage() != null ? ex.getMessage() : "The requested resource does not exist"
         );
 
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
     }
 
-    // Handle rate limiter rejection (429 Too Many Requests)
+    /**
+     * FIXED: Updated to match new ErrorResponse signature
+     * Handle rate limiter rejection (429 Too Many Requests)
+     */
     @ExceptionHandler(RequestNotPermitted.class)
     public ResponseEntity<ErrorResponse> handleRateLimitExceeded(RequestNotPermitted ex) {
         ErrorResponse response = new ErrorResponse(
-            HttpStatus.TOO_MANY_REQUESTS.value(),
+            "RATE_LIMIT_EXCEEDED",
             "Rate Limit Exceeded",
             "Too many requests. Please try again later."
         );
 
         HttpHeaders headers = new HttpHeaders();
-        headers.add("Retry-After", "1");
+        headers.add("Retry-After", "60");
 
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
             .headers(headers)
             .body(response);
     }
 
-    // Catch-all for unexpected errors (500 Internal Server Error)
+    /**
+     * FIXED: Updated to match new ErrorResponse signature
+     * Handle IllegalArgumentException for invalid product input
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
+        log.warn("Invalid argument: {}", ex.getMessage());
+
+        ErrorResponse response = new ErrorResponse(
+            "INVALID_INPUT",
+            "Invalid Product Input",
+            ex.getMessage() != null ? ex.getMessage() : "Please provide a valid product name"
+        );
+
+        return ResponseEntity.badRequest().body(response);
+    }
+
+    /**
+     * FIXED: Updated to match new ErrorResponse signature
+     * Catch-all for unexpected errors (500 Internal Server Error)
+     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
         log.error("Unexpected error occurred", ex);
 
         ErrorResponse response = new ErrorResponse(
-            HttpStatus.INTERNAL_SERVER_ERROR.value(),
+            "INTERNAL_SERVER_ERROR",
             "Internal Server Error",
             "An unexpected error occurred. Please try again later."
         );
