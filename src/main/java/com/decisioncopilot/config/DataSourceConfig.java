@@ -18,16 +18,12 @@ public class DataSourceConfig {
 
     private static final Logger log = LoggerFactory.getLogger(DataSourceConfig.class);
 
-    private static final String DEFAULT_JDBC_URL = "jdbc:postgresql://localhost:5432/decision_copilot";
-    private static final String DEFAULT_USER = "postgres";
-    private static final String DEFAULT_PASSWORD = "postgres";
-
     @Bean
     @Primary
     public DataSource dataSource(Environment env) {
         DbConfig config = resolveConfig(env);
 
-        log.info("Database URL: {}", maskCredentials(config.jdbcUrl()));
+        log.info("Database target: {}", maskCredentials(config.jdbcUrl()));
 
         HikariDataSource ds = new HikariDataSource();
         ds.setJdbcUrl(config.jdbcUrl());
@@ -43,73 +39,56 @@ public class DataSourceConfig {
     }
 
     private static DbConfig resolveConfig(Environment env) {
-        String springUrl = firstNonBlank(
-            env.getProperty("SPRING_DATASOURCE_URL"),
-            env.getProperty("spring.datasource.url"));
-        String springUser = firstNonBlank(
-            env.getProperty("SPRING_DATASOURCE_USERNAME"),
-            env.getProperty("spring.datasource.username"));
-        String springPassword = firstNonBlank(
-            env.getProperty("SPRING_DATASOURCE_PASSWORD"),
-            env.getProperty("spring.datasource.password"));
-
-        if (springUrl != null) {
-            return new DbConfig(toJdbcUrl(springUrl), springUser != null ? springUser : DEFAULT_USER,
-                springPassword != null ? springPassword : DEFAULT_PASSWORD);
-        }
-
-        String databaseUrl = firstNonBlank(System.getenv("DATABASE_URL"), env.getProperty("DATABASE_URL"));
+        String databaseUrl = firstNonBlank(
+            System.getenv("DATABASE_URL"),
+            System.getenv("DATABASE_PRIVATE_URL"),
+            env.getProperty("DATABASE_URL"),
+            env.getProperty("DATABASE_PRIVATE_URL"));
         if (databaseUrl != null) {
             return parseDatabaseUrl(databaseUrl);
         }
 
-        String host = System.getenv("PGHOST");
-        String port = System.getenv("PGPORT");
-        String db = System.getenv("PGDATABASE");
-        String user = System.getenv("PGUSER");
-        String password = System.getenv("PGPASSWORD");
+        String host = firstNonBlank(System.getenv("PGHOST"), env.getProperty("PGHOST"));
+        String port = firstNonBlank(System.getenv("PGPORT"), env.getProperty("PGPORT"));
+        String db = firstNonBlank(System.getenv("PGDATABASE"), env.getProperty("PGDATABASE"));
+        String user = firstNonBlank(System.getenv("PGUSER"), env.getProperty("PGUSER"));
+        String password = firstNonBlank(System.getenv("PGPASSWORD"), env.getProperty("PGPASSWORD"));
         if (host != null && port != null && db != null && user != null && password != null) {
             return new DbConfig("jdbc:postgresql://" + host + ":" + port + "/" + db, user, password);
         }
 
-        log.warn("No database env vars found; using local defaults ({})", DEFAULT_JDBC_URL);
-        return new DbConfig(DEFAULT_JDBC_URL, DEFAULT_USER, DEFAULT_PASSWORD);
+        throw new IllegalStateException(
+            "Database is not configured. On Railway, add a PostgreSQL plugin and link it to this service "
+                + "so DATABASE_URL or PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD are available.");
     }
 
     private static DbConfig parseDatabaseUrl(String databaseUrl) {
         try {
             URI uri = URI.create(databaseUrl.replace("postgres://", "postgresql://"));
             String userInfo = uri.getUserInfo();
-            String username = DEFAULT_USER;
-            String password = DEFAULT_PASSWORD;
-            if (userInfo != null && !userInfo.isBlank()) {
-                String[] parts = userInfo.split(":", 2);
-                username = URLDecoder.decode(parts[0], StandardCharsets.UTF_8);
-                if (parts.length > 1) {
-                    password = URLDecoder.decode(parts[1], StandardCharsets.UTF_8);
-                }
+            if (userInfo == null || userInfo.isBlank()) {
+                throw new IllegalStateException("Database URL is missing username and password");
             }
+            String[] parts = userInfo.split(":", 2);
+            String username = URLDecoder.decode(parts[0], StandardCharsets.UTF_8);
+            if (parts.length < 2 || parts[1].isBlank()) {
+                throw new IllegalStateException("Database URL is missing password");
+            }
+            String password = URLDecoder.decode(parts[1], StandardCharsets.UTF_8);
+
             String path = uri.getPath();
-            String db = (path == null || path.length() <= 1) ? "decision_copilot" : path.substring(1);
+            String db = (path == null || path.length() <= 1) ? "railway" : path.substring(1);
             int port = uri.getPort() > 0 ? uri.getPort() : 5432;
             String jdbcUrl = "jdbc:postgresql://" + uri.getHost() + ":" + port + "/" + db;
             if (uri.getQuery() != null && !uri.getQuery().isBlank()) {
                 jdbcUrl += "?" + uri.getQuery();
             }
             return new DbConfig(jdbcUrl, username, password);
+        } catch (IllegalStateException e) {
+            throw e;
         } catch (Exception e) {
             throw new IllegalStateException("Invalid DATABASE_URL: " + maskCredentials(databaseUrl), e);
         }
-    }
-
-    private static String toJdbcUrl(String url) {
-        if (url.startsWith("jdbc:")) {
-            return url;
-        }
-        if (url.startsWith("postgres://") || url.startsWith("postgresql://")) {
-            return parseDatabaseUrl(url).jdbcUrl();
-        }
-        return url;
     }
 
     private static String firstNonBlank(String... values) {

@@ -2,10 +2,7 @@ spring:
   application:
     name: decision-copilot
 
-  datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/decision_copilot}
-    username: ${SPRING_DATASOURCE_USERNAME:postgres}
-    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+  # Datasource: configured from Railway DATABASE_URL or PG* vars (see DataSourceConfig).
 
   jpa:
     hibernate:
@@ -24,15 +21,8 @@ spring:
     init:
       mode: never
 
-  data:
-    redis:
-      host: ${SPRING_DATA_REDIS_HOST:localhost}
-      port: ${SPRING_DATA_REDIS_PORT:6379}
-
   cache:
-    type: ${SPRING_CACHE_TYPE:simple}
-    redis:
-      time-to-live: 30m
+    type: simple
 
   ai:
     openai:
