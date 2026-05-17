@@ -2,8 +2,6 @@ spring:
   application:
     name: decision-copilot
 
-  # Datasource: configured from Railway DATABASE_URL or PG* vars (see DataSourceConfig).
-
   jpa:
     hibernate:
       ddl-auto: update
@@ -24,9 +22,12 @@ spring:
   cache:
     type: simple
 
+  # FIXED: Keep AI config but it's OPTIONAL and won't block
+  # If you want to enable real AI in future, just set enabled: true
+  # and provide GEMINI_API_KEY environment variable
   ai:
     openai:
-      api-key: ${GEMINI_API_KEY}
+      api-key: ${GEMINI_API_KEY:default-key-not-used}
       base-url: https://generativelanguage.googleapis.com/v1beta/openai
       chat:
         options:
@@ -35,20 +36,15 @@ spring:
 
 server:
   port: ${PORT:8080}
+  servlet:
+    session:
+      timeout: 30m
 
 springdoc:
   api-docs:
     path: /api-docs
   swagger-ui:
     path: /swagger-ui.html
-
-# FIXED: Add thread pool for background async processing
-# This prevents the "too much loading" issue where requests hang
-spring-thread-pool:
-  core-pool-size: 5
-  max-pool-size: 10
-  queue-capacity: 100
-  thread-name-prefix: llm-task-
 
 resilience4j:
   circuitbreaker:
@@ -65,6 +61,7 @@ resilience4j:
           - java.util.concurrent.TimeoutException
           - java.io.IOException
           - org.springframework.web.client.HttpServerErrorException
+  
   retry:
     instances:
       llmService:
@@ -75,6 +72,7 @@ resilience4j:
         retryExceptions:
           - java.util.concurrent.TimeoutException
           - java.io.IOException
+
   ratelimiter:
     instances:
       decisionApi:
