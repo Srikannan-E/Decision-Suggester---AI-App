@@ -8,8 +8,8 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 @SpringBootApplication
 @EnableTransactionManagement
-@EnableCaching          // ← ADD THIS (for LLM response caching)
-@EnableRetry            // ← ADD THIS (for Gemini API retries)
+@EnableCaching
+@EnableRetry
 public class DecisionCopilotApplication {
 
 	public static void main(String[] args) {

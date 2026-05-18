@@ -6,6 +6,9 @@ import com.decisioncopilot.model.DecisionResult;
 import com.decisioncopilot.model.Product;
 import com.decisioncopilot.repository.DecisionResultRepository;
 import com.decisioncopilot.repository.ProductRepository;
+import com.google.gson.Gson;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,11 +18,14 @@ import java.util.UUID;
 @Service
 public class DecisionPersistenceService {
 
+    private static final Logger log = LoggerFactory.getLogger(DecisionPersistenceService.class);
+
     private final ProductDataService productDataService;
     private final LlmDecisionService llmDecisionService;
     private final DecisionResultRepository resultRepository;
     private final ProductRepository productRepository;
     private final DecisionQueryStatusService statusService;
+    private final Gson gson = new Gson();
 
     public DecisionPersistenceService(
             ProductDataService productDataService,
@@ -47,15 +53,17 @@ public class DecisionPersistenceService {
             budget,
             userQuestion);
 
-        // Save product and ensure it's flushed to the database
+        // Save product
         Product product = saveProduct(productData);
         
-        // Link product to query AFTER ensuring product is committed
-        // This prevents FK constraint violation in the separate REQUIRES_NEW transaction
+        // Link product to query
         statusService.linkProduct(queryId, product.getId());
 
+        // Generate decision using LLM
         LlmDecisionResult llmResult = llmDecisionService.generateDecision(productData);
         long processingTime = System.currentTimeMillis() - startTime;
+        
+        // Save decision result
         saveDecisionResult(queryId, product.getId(), llmResult, processingTime);
     }
 
@@ -88,10 +96,6 @@ public class DecisionPersistenceService {
         product.setSpecSummary(data.specSummary());
         product.setCreatedAt(LocalDateTime.now());
         
-        // CRITICAL FIX: Use saveAndFlush() instead of save()
-        // This ensures the product is immediately persisted to the database
-        // before linkProduct() is called with REQUIRES_NEW propagation
-        // Otherwise, the FK reference to this product won't exist yet
         return productRepository.saveAndFlush(product);
     }
 
@@ -101,13 +105,21 @@ public class DecisionPersistenceService {
         result.setProductId(productId);
         result.setVerdict(llmResult.verdict());
         result.setConfidenceScore(llmResult.confidenceScore());
-        result.setPros(llmResult.pros());
-        result.setCons(llmResult.cons());
+        
+        // FIXED: Convert arrays to JSON strings for database storage
+        result.setPros(gson.toJson(llmResult.pros()));
+        result.setCons(gson.toJson(llmResult.cons()));
+        
         result.setSummary(llmResult.summary());
         result.setReasoning(llmResult.reasoning());
         result.setLlmModel("gemini-2.5-flash");
         result.setProcessingTimeMs(processingTime);
         result.setCreatedAt(LocalDateTime.now());
+        
+        log.debug("Saving decision result - verdict: {}, confidence: {}, pros: {}, cons: {}", 
+            result.getVerdict(), result.getConfidenceScore(), 
+            result.getPros().length(), result.getCons().length());
+        
         resultRepository.saveAndFlush(result);
     }
 }

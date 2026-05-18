@@ -1,98 +1,81 @@
 package com.decisioncopilot.service;
 
 import com.decisioncopilot.dto.DecisionHistoryResponse;
-import com.decisioncopilot.dto.DecisionResponse;
+import com.decisioncopilot.dto.DecisionResponseDTO;
 import com.decisioncopilot.model.DecisionQuery;
 import com.decisioncopilot.model.DecisionResult;
 import com.decisioncopilot.model.DecisionStatus;
-import com.decisioncopilot.model.Product;
 import com.decisioncopilot.repository.DecisionQueryRepository;
 import com.decisioncopilot.repository.DecisionResultRepository;
-import com.decisioncopilot.repository.ProductRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
-
-import java.util.NoSuchElementException;
+import jakarta.persistence.EntityNotFoundException;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class DecisionQueryService {
 
+    private static final Logger log = LoggerFactory.getLogger(DecisionQueryService.class);
+
     private final DecisionQueryRepository queryRepository;
     private final DecisionResultRepository resultRepository;
-    private final ProductRepository productRepository;
 
-    public DecisionQueryService(DecisionQueryRepository queryRepository,
-                                DecisionResultRepository resultRepository,
-                                ProductRepository productRepository) {
+    public DecisionQueryService(DecisionQueryRepository queryRepository, DecisionResultRepository resultRepository) {
         this.queryRepository = queryRepository;
         this.resultRepository = resultRepository;
-        this.productRepository = productRepository;
     }
 
-    // Fetch a single decision by query ID and map to response DTO
-    public DecisionResponse getDecisionById(UUID id) {
+    /**
+     * Get specific decision by ID
+     * Returns DTO with converted arrays
+     */
+    public Object getDecisionById(UUID id) {
         DecisionQuery query = queryRepository.findById(id)
-            .orElseThrow(() -> new NoSuchElementException("Decision not found: " + id));
+            .orElseThrow(() -> new EntityNotFoundException("Decision query not found: " + id));
 
-        DecisionResult result = resultRepository.findByQueryId(id).orElse(null);
-        Product product = result != null ? productRepository.findById(result.getProductId()).orElse(null) : null;
-
-        return mapToResponse(query, result, product);
-    }
-
-    // Fetch paginated decision history
-    public DecisionHistoryResponse getDecisionHistory(int page, int size) {
-        Page<DecisionResponse> history = queryRepository.findAll(PageRequest.of(page, size))
-            .map(query -> {
-                DecisionResult result = resultRepository.findByQueryId(query.getId()).orElse(null);
-                Product product = result != null ? productRepository.findById(result.getProductId()).orElse(null) : null;
-                return mapToResponse(query, result, product);
-            });
-
-        return new DecisionHistoryResponse(
-            history.getContent(),
-            history.getNumber(),
-            history.getSize(),
-            history.getTotalElements(),
-            history.getTotalPages()
-        );
-    }
-
-    // Map entity pair to the response DTO
-    private DecisionResponse mapToResponse(DecisionQuery query, DecisionResult result, Product product) {
-        if (result == null || product == null) {
-            return new DecisionResponse(
-                query.getId(),
-                query.getStatus().name(),
-                null, null, null, null, null, null, null, null, null, null, null, null,
-                query.getCreatedAt(),
-                query.getErrorMessage()
-            );
+        if (query.getStatus() == DecisionStatus.PENDING || query.getStatus() == DecisionStatus.PROCESSING) {
+            return new java.util.HashMap<String, Object>() {{
+                put("id", id);
+                put("status", query.getStatus().toString());
+                put("message", "Decision is still being processed. Please check again in a moment.");
+            }};
         }
 
-        String status = query.getStatus() == DecisionStatus.COMPLETED || query.getStatus() == DecisionStatus.FAILED
-            ? query.getStatus().name()
-            : DecisionStatus.COMPLETED.name();
+        // Get the decision result
+        DecisionResult result = resultRepository.findByQueryId(id)
+            .orElseThrow(() -> new EntityNotFoundException("Decision result not found for query: " + id));
 
-        return new DecisionResponse(
-            query.getId(),
-            status,
-            product.getName(),
-            product.getPrice(),
-            product.getRating(),
-            result.getVerdict(),
-            result.getConfidenceScore(),
-            result.getPros(),
-            result.getCons(),
-            product.getFeatureHighlights(),
-            product.getSpecSummary(),
-            result.getSummary(),
-            result.getReasoning(),
-            result.getProcessingTimeMs(),
-            query.getCreatedAt(),
-            null
+        // Convert to DTO (converts JSON strings back to arrays)
+        return DecisionResponseDTO.fromEntity(result);
+    }
+
+    /**
+     * Get decision history with pagination
+     */
+    public DecisionHistoryResponse getDecisionHistory(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Page<DecisionQuery> queries = queryRepository.findAll(pageable);
+
+        var decisions = queries.getContent().stream()
+            .map(query -> {
+                var result = resultRepository.findByQueryId(query.getId());
+                return result.map(DecisionResponseDTO::fromEntity).orElse(null);
+            })
+            .filter(dto -> dto != null)
+            .collect(Collectors.toList());
+
+        return new DecisionHistoryResponse(
+            decisions,
+            page,
+            size,
+            queries.getTotalElements(),
+            queries.getTotalPages()
         );
     }
 }
