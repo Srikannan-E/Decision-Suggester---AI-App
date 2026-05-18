@@ -6,11 +6,11 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 @SpringBootApplication
 @EnableTransactionManagement
+@EnableCaching 
+@EnableRetry
 public class DecisionCopilotApplication {
-
-	public static void main(String[] args) {
-		SpringApplication.run(DecisionCopilotApplication.class, args);
-	}
-
+    public static void main(String[] args) {
+        SpringApplication.run(DecisionCopilotApplication.class, args);
+    }
 }
 
