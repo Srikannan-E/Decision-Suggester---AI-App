@@ -2,9 +2,10 @@ package com.decisioncopilot.service;
 
 import com.decisioncopilot.dto.LlmDecisionResult;
 import com.decisioncopilot.dto.ProductData;
-import com.google.generativeai.client.GenerativeAI;
-import com.google.generativeai.types.generativedatetime.GenerateContentResponse;
-import com.google.generativeai.types.generativedatetime.GenerativeModel;
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,36 +14,33 @@ import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 
+import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 
 /**
- * UPDATED: Gemini LLM Service with Caching & Retry
+ * Gemini LLM Service - Uses native Java HttpURLConnection
  * Generates intelligent product decisions using Google Gemini API
  * Runs asynchronously in background thread (non-blocking)
+ * 
+ * API Docs: https://ai.google.dev/tutorials/rest_quickstart
  */
 @Service
 public class LlmDecisionService {
 
     private static final Logger log = LoggerFactory.getLogger(LlmDecisionService.class);
-
-    private final GenerativeAI generativeAI;
-    
-    @Value("${spring.gemini.model-name:gemini-2.5-flash}")
-    private String modelName;
+    private static final String GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
     
     @Value("${spring.gemini.api-key:}")
     private String apiKey;
+    
+    private final Gson gson = new Gson();
 
-    public LlmDecisionService(@Value("${spring.gemini.api-key:}") String apiKey) {
-        this.apiKey = apiKey;
-        if (apiKey == null || apiKey.isBlank()) {
-            log.warn("GEMINI_API_KEY not configured. Fallback mode enabled.");
-            this.generativeAI = null;
-        } else {
-            this.generativeAI = new GenerativeAI(apiKey);
-            log.info("Gemini AI initialized successfully");
-        }
+    public LlmDecisionService() {
+        // Empty constructor - Spring manages bean creation
     }
 
     /**
@@ -60,8 +58,8 @@ public class LlmDecisionService {
         log.info("Generating Gemini decision for product: {} in category: {}", 
             product.name(), product.category());
 
-        if (generativeAI == null) {
-            log.warn("Gemini API not configured, using fallback decision");
+        if (apiKey == null || apiKey.isBlank()) {
+            log.warn("Gemini API key not configured, using fallback decision");
             return fallbackDecision(product);
         }
 
@@ -111,10 +109,10 @@ public class LlmDecisionService {
             prompt.append("Question: ").append(product.buyerQuestion()).append("\n");
         }
         
-        prompt.append("\nRESPOND with JSON only (no extra text):\n");
+        prompt.append("\nRESPOND with JSON only (no markdown, no extra text):\n");
         prompt.append("{\n");
         prompt.append("  \"verdict\": \"BUY\"|\"MAYBE\"|\"DONT_BUY\",\n");
-        prompt.append("  \"confidenceScore\": 0.38-0.93,\n");
+        prompt.append("  \"confidenceScore\": 0.45,\n");
         prompt.append("  \"pros\": [\"pro1\", \"pro2\", \"pro3\", \"pro4\"],\n");
         prompt.append("  \"cons\": [\"con1\", \"con2\", \"con3\", \"con4\", \"con5\"],\n");
         prompt.append("  \"summary\": \"1-2 line summary\",\n");
@@ -125,139 +123,176 @@ public class LlmDecisionService {
     }
 
     /**
-     * Call Gemini API with timeout
+     * Call Gemini API using native Java HttpURLConnection
+     * No external HTTP client library needed
      */
     @Retryable(
         retryFor = { Exception.class },
         maxAttempts = 2,
         backoff = @Backoff(delay = 2000, multiplier = 2.0)
     )
-    private String callGeminiApi(String prompt) {
+    private String callGeminiApi(String prompt) throws Exception {
+        log.debug("Calling Gemini API...");
+        
+        String urlString = GEMINI_API_URL + "?key=" + apiKey;
+        HttpURLConnection connection = (HttpURLConnection) new URL(urlString).openConnection();
+        
         try {
-            GenerativeModel model = generativeAI.getGenerativeModel(modelName);
-            GenerateContentResponse response = model.generateContent(prompt);
-            String result = response.getText();
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Content-Type", "application/json");
+            connection.setDoOutput(true);
+            connection.setConnectTimeout(30000);
+            connection.setReadTimeout(30000);
             
-            log.debug("Gemini API response: {} chars", result.length());
-            return result;
-        } catch (Exception e) {
-            log.error("Gemini API failed", e);
-            throw new RuntimeException("Gemini API error: " + e.getMessage(), e);
+            // Build request JSON
+            JsonObject requestBody = new JsonObject();
+            JsonArray contentsArray = new JsonArray();
+            JsonObject content = new JsonObject();
+            JsonArray partsArray = new JsonArray();
+            JsonObject part = new JsonObject();
+            part.addProperty("text", prompt);
+            partsArray.add(part);
+            content.add("parts", partsArray);
+            contentsArray.add(content);
+            requestBody.add("contents", contentsArray);
+            
+            String requestJson = gson.toJson(requestBody);
+            log.debug("Gemini request: {}", requestJson);
+            
+            // Send request
+            try (OutputStream os = connection.getOutputStream()) {
+                byte[] input = requestJson.getBytes(StandardCharsets.UTF_8);
+                os.write(input, 0, input.length);
+            }
+            
+            // Read response
+            int responseCode = connection.getResponseCode();
+            if (responseCode != 200) {
+                String errorMessage = new String(connection.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
+                log.error("Gemini API error ({}): {}", responseCode, errorMessage);
+                throw new RuntimeException("Gemini API error: " + responseCode + " - " + errorMessage);
+            }
+            
+            String response = new String(connection.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            log.debug("Gemini response: {} chars", response.length());
+            
+            return response;
+        } finally {
+            connection.disconnect();
         }
     }
 
     /**
-     * Parse JSON response from Gemini
+     * Parse JSON response from Gemini API
      */
     private LlmDecisionResult parseGeminiResponse(String response, ProductData product) {
         try {
-            String verdict = extractJsonValue(response, "verdict");
+            JsonObject responseObj = JsonParser.parseString(response).getAsJsonObject();
+            
+            // Extract text from candidates
+            if (!responseObj.has("candidates") || responseObj.getAsJsonArray("candidates").size() == 0) {
+                log.warn("No candidates in Gemini response");
+                return fallbackDecision(product);
+            }
+            
+            JsonObject candidate = responseObj.getAsJsonArray("candidates").get(0).getAsJsonObject();
+            JsonObject contentObj = candidate.getAsJsonObject("content");
+            JsonArray parts = contentObj.getAsJsonArray("parts");
+            String textResponse = parts.get(0).getAsJsonObject().get("text").getAsString();
+            
+            log.debug("Gemini text response: {}", textResponse);
+            
+            // Parse the JSON from the text
+            JsonObject decisionJson = parseJsonFromText(textResponse);
+            
+            String verdict = getStringOrDefault(decisionJson, "verdict", "MAYBE");
             if (!isValidVerdict(verdict)) {
                 verdict = "MAYBE";
             }
             
-            String confidenceStr = extractJsonValue(response, "confidenceScore");
-            BigDecimal confidence = parseConfidence(confidenceStr);
+            BigDecimal confidence = getConfidenceOrDefault(decisionJson, "confidenceScore", BigDecimal.valueOf(0.65));
             
-            String[] pros = parseJsonArray(response, "pros", 4);
-            String[] cons = parseJsonArray(response, "cons", 5);
+            String[] pros = getStringArrayOrDefault(decisionJson, "pros", 4);
+            String[] cons = getStringArrayOrDefault(decisionJson, "cons", 5);
             
-            String summary = extractJsonValue(response, "summary");
-            if (summary == null || summary.isBlank()) {
-                summary = "Product analysis based on available data.";
-            }
-            
-            String reasoning = extractJsonValue(response, "reasoning");
-            if (reasoning == null || reasoning.isBlank()) {
-                reasoning = "Decision based on rating, price, and review analysis.";
-            }
+            String summary = getStringOrDefault(decisionJson, "summary", "Product analysis based on available data.");
+            String reasoning = getStringOrDefault(decisionJson, "reasoning", "Decision based on rating, price, and review analysis.");
             
             return new LlmDecisionResult(verdict, confidence, pros, cons, summary, reasoning);
         } catch (Exception e) {
-            log.warn("JSON parsing failed, using fallback", e);
+            log.warn("Failed to parse Gemini response: {}", e.getMessage(), e);
             return fallbackDecision(product);
         }
     }
 
     /**
-     * Extract value from JSON string
+     * Extract JSON object from text response (handles markdown code blocks)
      */
-    private String extractJsonValue(String json, String key) {
+    private JsonObject parseJsonFromText(String text) {
         try {
-            int keyIdx = json.indexOf("\"" + key + "\"");
-            if (keyIdx == -1) return null;
+            // Remove markdown code block markers if present
+            String cleanText = text.replace("```json\n", "")
+                                   .replace("```json", "")
+                                   .replace("```\n", "")
+                                   .replace("```", "")
+                                   .trim();
             
-            int colonIdx = json.indexOf(":", keyIdx);
-            if (colonIdx == -1) return null;
-            
-            int startIdx = colonIdx + 1;
-            while (startIdx < json.length() && Character.isWhitespace(json.charAt(startIdx))) {
-                startIdx++;
-            }
-            
-            char firstChar = json.charAt(startIdx);
-            int endIdx;
-            
-            if (firstChar == '"') {
-                endIdx = json.indexOf("\"", startIdx + 1);
-                return json.substring(startIdx + 1, endIdx);
-            } else if (firstChar == '[') {
-                endIdx = json.indexOf("]", startIdx) + 1;
-                return json.substring(startIdx, endIdx);
-            } else {
-                endIdx = startIdx;
-                while (endIdx < json.length() && 
-                       !Character.isWhitespace(json.charAt(endIdx)) && 
-                       json.charAt(endIdx) != ',' && 
-                       json.charAt(endIdx) != '}') {
-                    endIdx++;
-                }
-                return json.substring(startIdx, endIdx).trim();
-            }
+            return JsonParser.parseString(cleanText).getAsJsonObject();
         } catch (Exception e) {
-            return null;
+            log.warn("Failed to parse JSON from text: {}", text);
+            return new JsonObject();
         }
     }
 
     /**
-     * Parse JSON array from response
+     * Get string value from JSON with default
      */
-    private String[] parseJsonArray(String json, String key, int maxSize) {
+    private String getStringOrDefault(JsonObject obj, String key, String defaultValue) {
         try {
-            String arrayStr = extractJsonValue(json, key);
-            if (arrayStr == null || !arrayStr.startsWith("[")) return new String[0];
-            
-            String content = arrayStr.substring(1, arrayStr.length() - 1);
-            String[] items = content.split(",");
-            
-            java.util.List<String> result = new java.util.ArrayList<>();
-            for (String item : items) {
-                item = item.trim();
-                if (item.startsWith("\"") && item.endsWith("\"")) {
-                    result.add(item.substring(1, item.length() - 1));
-                }
-                if (result.size() >= maxSize) break;
+            if (obj.has(key) && !obj.get(key).isJsonNull()) {
+                return obj.get(key).getAsString();
             }
-            
-            return result.toArray(new String[0]);
         } catch (Exception e) {
-            return new String[0];
+            log.debug("Failed to get string value for key: {}", key);
         }
+        return defaultValue;
     }
 
     /**
-     * Parse and validate confidence score
+     * Get confidence score from JSON with bounds checking
      */
-    private BigDecimal parseConfidence(String value) {
+    private BigDecimal getConfidenceOrDefault(JsonObject obj, String key, BigDecimal defaultValue) {
         try {
-            if (value == null || value.isBlank()) return BigDecimal.valueOf(0.65);
-            BigDecimal bd = new BigDecimal(value.trim());
-            if (bd.compareTo(BigDecimal.valueOf(0.38)) < 0) return BigDecimal.valueOf(0.38);
-            if (bd.compareTo(BigDecimal.valueOf(0.93)) > 0) return BigDecimal.valueOf(0.93);
-            return bd.setScale(2, RoundingMode.HALF_UP);
+            if (obj.has(key) && !obj.get(key).isJsonNull()) {
+                double value = obj.get(key).getAsDouble();
+                BigDecimal bd = BigDecimal.valueOf(value);
+                if (bd.compareTo(BigDecimal.valueOf(0.38)) < 0) return BigDecimal.valueOf(0.38);
+                if (bd.compareTo(BigDecimal.valueOf(0.93)) > 0) return BigDecimal.valueOf(0.93);
+                return bd.setScale(2, RoundingMode.HALF_UP);
+            }
         } catch (Exception e) {
-            return BigDecimal.valueOf(0.65);
+            log.debug("Failed to parse confidence score");
         }
+        return defaultValue;
+    }
+
+    /**
+     * Get string array from JSON
+     */
+    private String[] getStringArrayOrDefault(JsonObject obj, String key, int maxSize) {
+        try {
+            if (obj.has(key) && obj.get(key).isJsonArray()) {
+                JsonArray array = obj.getAsJsonArray(key);
+                String[] result = new String[Math.min(array.size(), maxSize)];
+                for (int i = 0; i < result.length; i++) {
+                    result[i] = array.get(i).getAsString();
+                }
+                return result;
+            }
+        } catch (Exception e) {
+            log.debug("Failed to parse array for key: {}", key);
+        }
+        return new String[0];
     }
 
     /**
